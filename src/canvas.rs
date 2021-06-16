@@ -1,75 +1,110 @@
 extern crate pancurses;
 
 use pancurses::*;
-use std::time::{Duration, Instant};
 use std::thread::sleep;
+use std::time::{Duration, Instant};
+
+const CORRECT_CHAR: u8 = 1;
+const INCORRECT_CHAR: u8 = 2;
+const RED_BACKGROUD: u8 = 3;
 
 pub struct Canvas {
-    pub window: Window,
+    pub text_win: Window,
     pub input_win: Window,
-    state_win: Window,
+    pub state_win: Window,
     pub input: String,
-    pub words: Vec<String>,
+    pub text: String,
     word_idx: usize,
 }
 
 impl Canvas {
-    pub fn new(win: Window, input_win: Window, state_win: Window) -> Canvas {
-        Canvas{
-            window: win,
+    pub fn new(text_win: Window, input_win: Window, state_win: Window) -> Canvas {
+        Canvas {
+            text_win: text_win,
             input_win: input_win,
             state_win: state_win,
             input: String::new(),
-            words: Vec::new(),
+            text: String::new(),
             word_idx: 0,
         }
     }
 
-    fn display(&self) {
-        let (mut y, mut x) = (0,0);
-        
-        self.window.erase();
+    pub fn get_words(&self) -> std::str::SplitWhitespace<'_> {
+        self.text.split_whitespace()
+    }
 
-        init_pair(1, COLOR_GREEN, COLOR_BLACK);
+    fn get_char_index(&self) -> usize {
+        let words = self
+            .get_words()
+            .take(self.word_idx)
+            .map(|x| x.chars().count())
+            .sum::<usize>();
+        let spaces = self.word_idx;
+        let input = self.input.chars().count();
+        words + input + spaces
+    }
+
+    fn get_char_byte_index(&self) -> usize {
+        let words = self
+            .get_words()
+            .take(self.word_idx)
+            .map(|x| x.len())
+            .sum::<usize>();
+        let spaces = self.word_idx;
+        let input = self.input.len();
+        words + spaces + input
+    }
+
+    fn display(&self) {
+        self.text_win.erase();
+
         let mut attr = Attributes::new();
         attr.set_bold(true);
-        attr.set_color_pair(ColorPair(1));
-        self.window.attron(attr);
+        attr.set_color_pair(ColorPair(CORRECT_CHAR));
+        self.text_win.attron(attr);
 
-        init_pair(2, COLOR_RED, COLOR_BLACK);
         let mut wrong_attr = Attributes::new();
         wrong_attr.set_bold(true);
-        wrong_attr.set_color_pair(ColorPair(2));
+        wrong_attr.set_color_pair(ColorPair(INCORRECT_CHAR));
 
-        for (i, word) in self.words.iter().enumerate() {
-            if x + word.chars().count() as i32 > self.window.get_max_x() {
-                y += 1;
-                x = 0;
-            }
+        let chars = self.text.chars();
+        // draw words already done
+        let input_len = self.input.len();
+        let char_idx = self.get_char_byte_index();
+        let done_until = char_idx - input_len;
+        let correct_until = done_until
+            + &self
+                .input
+                .char_indices()
+                .take_while(|&(i, c)| {
+                    self.get_words()
+                        .nth(self.word_idx)
+                        .unwrap()
+                        .chars()
+                        .nth(i)
+                        .unwrap_or(0 as char)
+                        == c
+                })
+                .map(|(_, c)| c)
+                .collect::<String>()
+                .len();
+        self.text_win.printw(&self.text[..done_until]);
+        self.text_win.printw(&self.text[done_until..correct_until]);
+        self.text_win.attron(wrong_attr);
+        self.text_win.printw(&self.text[correct_until..char_idx]);
+        self.text_win.attroff(wrong_attr);
+        self.text_win.printw(&self.text[char_idx..]);
 
-            if self.word_idx <= i {
-                self.window.attroff(attr);
-            } 
-
-            if self.word_idx == i {
-                for (j, c) in self.words[i].chars().enumerate() {
-                    if j >= self.input.chars().count() {
-                        self.window.attroff(wrong_attr);
-                        self.window.attroff(attr);
-                    } else if Some(c) == self.input.chars().nth(j) {
-                        self.window.attroff(wrong_attr);
-                        self.window.attron(attr);
-                    } else {
-                        self.window.attroff(attr);
-                        self.window.attron(wrong_attr);
-                    }
-                    self.window.mvprintw(y,x+j as i32,c.to_string());
-                }
-            } else {
-                self.window.mvprintw(y,x,&word);
-            }
-
-            x += word.chars().count() as i32 + 1;
+        // draw chars that are correct in current word
+        for c in chars
+            .enumerate()
+            .take_while(|&(i, c)| match self.input.chars().nth(i) {
+                Some(x) => x == c,
+                None => false,
+            })
+            .map(|(_, x)| x)
+        {
+            self.text_win.printw(c.to_string());
         }
     }
 
@@ -80,86 +115,105 @@ impl Canvas {
         self.state_win.refresh();
     }
 
+    fn display_input(&self) {
+        if self.word_idx < self.get_words().count() {
+            let is_ok = self
+                .get_words()
+                .nth(self.word_idx)
+                .unwrap()
+                .chars()
+                .take(self.input.chars().count())
+                .collect::<String>()
+                == self.input;
+            if self.input.chars().count()
+                > self.get_words().nth(self.word_idx).unwrap().chars().count()
+                || !is_ok
+            {
+                self.input_win.bkgd(COLOR_PAIR(RED_BACKGROUD as u32));
+            } else {
+                self.input_win.bkgd(COLOR_PAIR(0));
+            }
+        } else {
+            self.input_win.bkgd(COLOR_PAIR(0));
+        }
+        self.input_win.mvprintw(0, 0, &self.input);
+        self.input_win.printw("_");
+    }
+
     pub fn run_test(&mut self) -> Duration {
+        use_default_colors();
         curs_set(0);
         noecho();
         nonl();
-        self.input_win.nodelay(true);
+
+        init_pair(CORRECT_CHAR as i16, COLOR_GREEN, -1);
+        init_pair(INCORRECT_CHAR as i16, COLOR_WHITE, COLOR_RED);
+        init_pair(RED_BACKGROUD as i16, COLOR_WHITE, COLOR_RED);
+
         self.display();
-        self.window.refresh();
-        self.input_win.mv(0,0);
+        self.text_win.refresh();
+        self.input_win.mv(0, 0);
 
         let timer = Instant::now();
-    
         loop {
             match self.input_win.getch() {
-                Some(Input::Character('\n')) => (),
+                Some(Input::Character('\x0D')) => (),
                 Some(Input::Character(' ')) => {
-                    if self.word_idx < self.words.len() 
-                        && self.input == self.words[self.word_idx]  {
-                        self.word_idx += 1;
+                    if self.word_idx < self.get_words().count()
+                        && self.input == self.get_words().nth(self.word_idx).unwrap()
+                    {
                         self.input.clear();
                         self.input_win.erase();
+                        self.word_idx += 1;
                     } else {
                         self.input.push(' ');
                     }
                 }
-                // Ctrl + delete pressed
-                Some(Input::Character('\x07')) => {
-                    let word_len = self.input.split_whitespace().last().unwrap_or("").chars().count();
+                // Ctrl + backspace pressed
+                Some(Input::Character('\x08')) => {
+                    let word_len = self
+                        .input
+                        .split_whitespace()
+                        .last()
+                        .unwrap_or("")
+                        .chars()
+                        .count();
                     let spaces = self.input.chars().count() - self.input.trim_end().chars().count();
-                    for _ in 0..word_len + spaces { self.input.pop(); }
+                    for _ in 0..word_len + spaces {
+                        self.input.pop();
+                    }
                     self.input_win.erase();
                 }
-                // normal characters
-                Some(Input::Character(c)) => {
-                        self.input.push(c);
-                        //self.input_win.printw(&format!("{:?}", c));
-                }
-                // delete key quits the program
-                Some(Input::KeyDC) => break,
                 // handle backspace button
                 Some(Input::KeyBackspace) => {
                     let _ = self.input.pop();
                     self.input_win.erase();
                 }
-                Some(input) => //(),
-                {
-                    self.input_win.printw(&format!("{:?}", input));
+                // normal characters
+                Some(Input::Character(c)) => {
+                    self.input.push(c);
                 }
+                // delete key quits the program
+                Some(Input::KeyDC) => break,
+                Some(_) => (),
                 None => (),
             }
 
-            init_pair(3, COLOR_WHITE, COLOR_RED);
-
-            if self.word_idx < self.words.len() {
-                let is_ok =  self.words[self.word_idx].find(&self.input);
-                if self.input.len() > self.words[self.word_idx].len() 
-                    || is_ok == None {
-                    self.input_win.bkgd(COLOR_PAIR(3));
-                } else {
-                    self.input_win.bkgd(COLOR_PAIR(0)); 
-                }
-            } else {
-                self.input_win.bkgd(COLOR_PAIR(0)); 
-            }
-            
-            self.input_win.mvprintw(0, 0, &self.input);
-            self.input_win.printw("_");
-            self.display();
             self.display_state(format!("{}", timer.elapsed().as_secs()));
-            if self.window.is_touched() { self.window.refresh(); } 
+            self.display_input();
+            self.display();
+            self.text_win.refresh();
 
-            if self.word_idx == self.words.len() - 1
-                && self.words[self.word_idx] == self.input {
+            if self.word_idx == self.get_words().count() - 1
+                && self.get_words().nth(self.word_idx).unwrap() == self.input
+            {
                 break;
             }
 
-            sleep(Duration::new(0,100000));
+            sleep(Duration::new(0, 17000));
         }
         nl();
         echo();
         timer.elapsed()
     }
 }
-
