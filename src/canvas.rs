@@ -1,8 +1,10 @@
 extern crate pancurses;
+extern crate textwrap;
 
 use pancurses::*;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
+use textwrap::*;
 
 const CORRECT_CHAR: u8 = 1;
 const INCORRECT_CHAR: u8 = 2;
@@ -55,7 +57,7 @@ impl Canvas {
         words + spaces + input
     }
 
-    fn display(&self) {
+    fn display_text(&self) {
         self.text_win.erase();
 
         let mut attr = Attributes::new();
@@ -67,8 +69,10 @@ impl Canvas {
         wrong_attr.set_bold(true);
         wrong_attr.set_color_pair(ColorPair(INCORRECT_CHAR));
 
-        let chars = self.text.chars();
-        // draw words already done
+        // Word wrap text for printing to the terminal
+        let wrapped = fill(&self.text, self.text_win.get_max_x() as usize);
+
+        // print text with correct attributes
         let input_len = self.input.len();
         let char_idx = self.get_char_byte_index();
         let done_until = char_idx - input_len;
@@ -88,24 +92,12 @@ impl Canvas {
                 .map(|(_, c)| c)
                 .collect::<String>()
                 .len();
-        self.text_win.printw(&self.text[..done_until]);
-        self.text_win.printw(&self.text[done_until..correct_until]);
+        self.text_win.printw(&wrapped[..done_until]);
+        self.text_win.printw(&wrapped[done_until..correct_until]);
         self.text_win.attron(wrong_attr);
-        self.text_win.printw(&self.text[correct_until..char_idx]);
+        self.text_win.printw(&wrapped[correct_until..char_idx]);
         self.text_win.attroff(wrong_attr);
-        self.text_win.printw(&self.text[char_idx..]);
-
-        // draw chars that are correct in current word
-        for c in chars
-            .enumerate()
-            .take_while(|&(i, c)| match self.input.chars().nth(i) {
-                Some(x) => x == c,
-                None => false,
-            })
-            .map(|(_, x)| x)
-        {
-            self.text_win.printw(c.to_string());
-        }
+        self.text_win.printw(&wrapped[char_idx..]);
     }
 
     fn display_state(&self, state: String) {
@@ -150,7 +142,7 @@ impl Canvas {
         init_pair(INCORRECT_CHAR as i16, COLOR_WHITE, COLOR_RED);
         init_pair(RED_BACKGROUD as i16, COLOR_WHITE, COLOR_RED);
 
-        self.display();
+        self.display_text();
         self.text_win.refresh();
         self.input_win.mv(0, 0);
 
@@ -201,7 +193,7 @@ impl Canvas {
 
             self.display_state(format!("{}", timer.elapsed().as_secs()));
             self.display_input();
-            self.display();
+            self.display_text();
             self.text_win.refresh();
 
             if self.word_idx == self.get_words().count() - 1
