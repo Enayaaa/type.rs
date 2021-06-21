@@ -1,7 +1,8 @@
 extern crate pancurses;
 mod canvas;
+mod formulas;
 
-use crate::canvas::Canvas;
+use crate::{canvas::Canvas, formulas::gross_wpm};
 use pancurses::*;
 
 const CANVAS_WIDTH: i32 = 40;
@@ -61,25 +62,41 @@ fn main() {
         so just bear with me here mate and we'll figure this out. Soon enough \
         I hope but you never know with this things, you know. ";
 
-    //for word in output.split_whitespace() {
-    //canvas.words.push(word.to_string());
-    //}
     canvas.text = String::from(output);
+
+    nl();
+    noecho();
+    stdscr.keypad(true);
+    stdscr.printw(
+        "
+         ____  _  _  ____  ____     ____  ____
+        (_  _)( \\/ )(  _ \\(  __)   (  _ \\/ ___)
+          )(   )  /  ) __/ ) _)  _  )   /\\___ \\
+         (__) (__/  (__)  (____)(_)(__\\_)(____/
+            ",
+    );
+    stdscr.printw("\nPress tab to start test");
+    loop {
+        match stdscr.getch() {
+            Some(Input::KeyDC) => break,
+            Some(_) => (),
+            None => (),
+        }
+    }
 
     border(&input_box, '─', '─', '│', '│', '╭', '╮', '╰', '╯');
     stdscr.refresh();
 
-    let time = canvas.run_test();
+    let (duration, data) = canvas.run_test();
 
     stdscr.attron(A_REVERSE);
     stdscr.mvprintw(
         5,
         (stdscr.get_max_x() - 10) / 2,
-        &format!(
-            " {} WPM ",
-            ((output.chars().count() as f32 / 5.1f32) / (time.as_secs() as f32 / 60f32)) as usize
-        ),
+        &format!(" {} WPM ", gross_wpm(output.chars().count(), duration)),
     );
+    stdscr.attroff(A_REVERSE);
+    stdscr.printw(" ლ(ಠ益ಠლ)");
     stdscr.refresh();
     stdscr.getch();
     endwin();

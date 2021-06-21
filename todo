@@ -1,0 +1,6 @@
+TODO
+*̶ ̶c̶o̶r̶r̶e̶c̶t̶ ̶i̶n̶d̶e̶x̶i̶n̶g̶ ̶o̶f̶ ̶w̶h̶a̶t̶ ̶c̶h̶a̶r̶a̶c̶t̶e̶r̶s̶ ̶t̶o̶ ̶d̶r̶a̶w̶ ̶w̶h̶a̶t̶ ̶c̶o̶l̶o̶r̶.̶
+* redo the windows, better error handling and better creation process.
+* implement data collection of a test
+* plot test data using textplot crate
+* implement menu system to restart test and change mode etc

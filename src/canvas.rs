@@ -1,6 +1,7 @@
 extern crate pancurses;
 extern crate textwrap;
 
+use crate::formulas::*;
 use pancurses::*;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -46,24 +47,12 @@ impl Canvas {
         words + input + spaces
     }
 
-    fn get_char_byte_index(&self) -> usize {
-        let words = self
-            .get_words()
-            .take(self.word_idx)
-            .map(|x| x.len())
-            .sum::<usize>();
-        let spaces = self.word_idx;
-        let input = self.input.len();
-        words + spaces + input
-    }
-
     fn display_text(&self) {
         self.text_win.erase();
 
         let mut attr = Attributes::new();
         attr.set_bold(true);
         attr.set_color_pair(ColorPair(CORRECT_CHAR));
-        self.text_win.attron(attr);
 
         let mut wrong_attr = Attributes::new();
         wrong_attr.set_bold(true);
@@ -73,38 +62,43 @@ impl Canvas {
         let wrapped = fill(&self.text, self.text_win.get_max_x() as usize);
 
         // print text with correct attributes
-        let input_len = self.input.len();
-        let char_idx = self.get_char_byte_index();
+        let input_len = self.input.chars().count();
+        let char_idx = self.get_char_index();
         let done_until = char_idx - input_len;
-        let correct_until = done_until
-            + &self
-                .input
-                .char_indices()
-                .take_while(|&(i, c)| {
-                    self.get_words()
-                        .nth(self.word_idx)
-                        .unwrap()
-                        .chars()
-                        .nth(i)
-                        .unwrap_or(0 as char)
-                        == c
-                })
-                .map(|(_, c)| c)
-                .collect::<String>()
-                .len();
-        self.text_win.printw(&wrapped[..done_until]);
-        self.text_win.printw(&wrapped[done_until..correct_until]);
+        let correct_in_word = self
+            .get_words()
+            .nth(self.word_idx)
+            .unwrap()
+            .chars()
+            .enumerate()
+            .take_while(|&(i, c)| c == self.input.chars().nth(i).unwrap_or(0 as char))
+            .count();
+        // draw the correct words so far
+        self.text_win.attron(attr);
+        self.text_win
+            .printw(&wrapped.chars().take(done_until).collect::<String>());
+        // draw the correct chars in current word
+        self.text_win.printw(
+            &wrapped
+                .chars()
+                .skip(done_until)
+                .take(correct_in_word)
+                .collect::<String>(),
+        );
+        self.text_win.attroff(attr);
+        // draw the incorrect chars in current word
         self.text_win.attron(wrong_attr);
-        self.text_win.printw(&wrapped[correct_until..char_idx]);
+        self.text_win.printw(
+            &wrapped
+                .chars()
+                .skip(done_until + correct_in_word)
+                .take(input_len - correct_in_word)
+                .collect::<String>(),
+        );
         self.text_win.attroff(wrong_attr);
-        self.text_win.printw(&wrapped[char_idx..]);
-    }
-
-    fn display_state(&self, state: String) {
-        let x = (self.state_win.get_max_x() - state.chars().count() as i32) / 2;
-        let y = 0;
-        self.state_win.mvprintw(y, x, &state);
-        self.state_win.refresh();
+        // draw the rest of the words not yet done
+        self.text_win
+            .printw(&wrapped.chars().skip(char_idx).collect::<String>());
     }
 
     fn display_input(&self) {
@@ -129,10 +123,18 @@ impl Canvas {
             self.input_win.bkgd(COLOR_PAIR(0));
         }
         self.input_win.mvprintw(0, 0, &self.input);
-        self.input_win.printw("_");
+        self.input_win.printw("▂");
+        //self.input_win.mvprintw(0, 10, "( ͡° ͜ʖ ͡°)");
     }
 
-    pub fn run_test(&mut self) -> Duration {
+    fn display_state(&self, state: String) {
+        let x = (self.state_win.get_max_x() - state.chars().count() as i32) / 2;
+        let y = 0;
+        self.state_win.mvprintw(y, x, &state);
+        self.state_win.refresh();
+    }
+
+    pub fn run_test(&mut self) -> (Duration, Vec<usize>) {
         use_default_colors();
         curs_set(0);
         noecho();
@@ -146,6 +148,8 @@ impl Canvas {
         self.text_win.refresh();
         self.input_win.mv(0, 0);
 
+        let mut data: Vec<usize> = Vec::new();
+        let mut data_timer = Instant::now();
         let timer = Instant::now();
         loop {
             match self.input_win.getch() {
@@ -199,13 +203,21 @@ impl Canvas {
             if self.word_idx == self.get_words().count() - 1
                 && self.get_words().nth(self.word_idx).unwrap() == self.input
             {
+                self.input_win.erase();
+                self.input_win.refresh();
                 break;
+            }
+
+            if data_timer.elapsed() >= Duration::from_secs(1) {
+                let wpm = gross_wpm(self.text.chars().count(), timer.elapsed());
+                data.push(wpm);
+                data_timer = Instant::now();
             }
 
             sleep(Duration::new(0, 17000));
         }
         nl();
         echo();
-        timer.elapsed()
+        (timer.elapsed(), data)
     }
 }
