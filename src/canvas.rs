@@ -134,9 +134,10 @@ impl Canvas {
         self.state_win.refresh();
     }
 
-    pub fn run_test(&mut self) -> (Duration, Vec<usize>) {
+    pub fn run_test(&mut self) -> (Duration, Vec<(f32, f32)>) {
         use_default_colors();
         curs_set(0);
+        self.input_win.nodelay(true);
         noecho();
         nonl();
 
@@ -148,8 +149,9 @@ impl Canvas {
         self.text_win.refresh();
         self.input_win.mv(0, 0);
 
-        let mut data: Vec<usize> = Vec::new();
+        let mut data: Vec<(f32, f32)> = Vec::new();
         let mut data_timer = Instant::now();
+
         let timer = Instant::now();
         loop {
             match self.input_win.getch() {
@@ -209,8 +211,8 @@ impl Canvas {
             }
 
             if data_timer.elapsed() >= Duration::from_secs(1) {
-                let wpm = gross_wpm(self.text.chars().count(), timer.elapsed());
-                data.push(wpm);
+                let wpm = gross_wpm(self.get_char_index(), timer.elapsed());
+                data.push((timer.elapsed().as_secs_f32(), wpm as f32));
                 data_timer = Instant::now();
             }
 
