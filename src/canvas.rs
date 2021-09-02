@@ -50,16 +50,18 @@ impl Canvas {
     fn display_text(&self) {
         self.text_win.erase();
 
+        let mut bold_attr = Attributes::new();
+        bold_attr.set_bold(true);
+        //self.text_win.attron(bold_attr);
+
         let mut attr = Attributes::new();
-        attr.set_bold(true);
         attr.set_color_pair(ColorPair(CORRECT_CHAR));
 
         let mut wrong_attr = Attributes::new();
-        wrong_attr.set_bold(true);
         wrong_attr.set_color_pair(ColorPair(INCORRECT_CHAR));
 
         // Word wrap text for printing to the terminal
-        let wrapped = fill(&self.text, self.text_win.get_max_x() as usize);
+        let wrapped = fill(&self.text, self.text_win.get_max_x() as usize - 1);
 
         // print text with correct attributes
         let input_len = self.input.chars().count();
@@ -218,6 +220,7 @@ impl Canvas {
 
             sleep(Duration::new(0, 17000));
         }
+        self.word_idx = 0;
         nl();
         echo();
         (timer.elapsed(), data)

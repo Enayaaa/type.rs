@@ -1,12 +1,17 @@
 extern crate pancurses;
+extern crate rand;
 extern crate textplots;
 mod canvas;
 mod formulas;
 
-use std::{result, time::Duration};
+use std::fs::File;
+use std::io::{self, BufRead};
+use std::path::Path;
+use std::time::Duration;
 
 use crate::{canvas::Canvas, formulas::gross_wpm};
 use pancurses::*;
+use rand::Rng;
 use textplots::*;
 
 const CANVAS_WIDTH: i32 = 40;
@@ -48,7 +53,7 @@ fn display_result(win: &Window, data: &Vec<(f32, f32)>, duration: Duration) {
     let ymin = f32::NEG_INFINITY;
     let xmin = 0.0;
     let xmax = duration.as_secs_f32();
-    let width = 100;
+    let width = 40;
     let height = 32;
 
     let y = Shape::Lines(&data[..]);
@@ -80,12 +85,21 @@ fn display_result(win: &Window, data: &Vec<(f32, f32)>, duration: Duration) {
     win.refresh();
 }
 
+fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let file = File::open(filename)?;
+    Ok(io::BufReader::new(file).lines())
+}
+
 fn main() {
     // main text_win containing whole screen
     def_shell_mode();
     let stdscr = initscr();
     def_prog_mode();
     curs_set(0);
+    start_color();
     // canvas for containing the text
     let begin_y = (stdscr.get_max_y() - CANVAS_HEIGHT) / 2;
     let begin_x = (stdscr.get_max_x() - CANVAS_WIDTH) / 2;
@@ -102,67 +116,63 @@ fn main() {
         .subwin(1, CANVAS_WIDTH, begin_y - 3, begin_x)
         .unwrap();
     let mut canvas = Canvas::new(text_win, input_win, state_win);
-    start_color();
     canvas.input_win.keypad(true);
 
-    let output = "This is a very long text to test line breaks and such \
-        so just bear with me here mate and we'll figure this out. Soon enough \
-        I hope but you never know with this things, you know. ";
+    loop {
+        let mut rng = rand::thread_rng();
+        let mut output = String::new();
+        while output.chars().count() < 180 {
+            if let Ok(mut lines) = read_lines("./src/lib/english.txt") {
+                let x: usize = rng.gen_range(0..1000);
+                if let Some(line) = lines.nth(x) {
+                    output.push_str(line.unwrap().trim());
+                    output.push(' ');
+                }
+            }
+        }
 
-    canvas.text = String::from(output);
+        canvas.text = output;
+        stdscr.erase();
+        canvas.input = String::from("");
 
-    nl();
-    noecho();
-    stdscr.keypad(true);
-    // stdscr.printw(
-    //     "
-    //      ____  _  _  ____  ____     ____  ____
-    //     (_  _)( \\/ )(  _ \\(  __)   (  _ \\/ ___)
-    //       )(   )  /  ) __/ ) _)  _  )   /\\___ \\
-    //      (__) (__/  (__)  (____)(_)(__\\_)(____/
-    //         ",
-    // );
-    // stdscr.printw("\nPress tab to start test");
-    // loop {
-    //     match stdscr.getch() {
-    //         Some(Input::Character('\t')) => break,
-    //         Some(x) => {
-    //             stdscr.printw(&format!("{:?}", x));
-    //         }
-    //         Some(_) => (),
-    //         None => (),
-    //     }
-    // }
+        nl();
+        noecho();
+        stdscr.keypad(true);
 
-    border(&input_box, '─', '─', '│', '│', '╭', '╮', '╰', '╯');
-    stdscr.refresh();
+        border(&input_box, '─', '─', '│', '│', '╭', '╮', '╰', '╯');
+        stdscr.refresh();
 
-    let (duration, data) = canvas.run_test();
-    stdscr.erase();
-    stdscr.refresh();
+        let (duration, data) = canvas.run_test();
+        stdscr.erase();
+        stdscr.refresh();
 
-    stdscr.attron(A_REVERSE);
-    stdscr.mvprintw(
-        5,
-        (stdscr.get_max_x() - 10) / 2,
-        &format!(" {} WPM ", gross_wpm(output.chars().count(), duration)),
-    );
-    stdscr.attroff(A_REVERSE);
-    stdscr.printw(" ლ(ಠ益ಠლ)");
+        stdscr.attron(A_REVERSE);
+        stdscr.mvprintw(
+            5,
+            (stdscr.get_max_x() - 10) / 2,
+            &format!(" {} WPM ", gross_wpm(canvas.text.chars().count(), duration)),
+        );
+        stdscr.attroff(A_REVERSE);
+        stdscr.printw(" ლ(ಠ益ಠლ)");
 
-    let result_win = stdscr
-        .subwin(
-            32,
-            100,
-            (stdscr.get_max_y() - 32) / 2,
-            (stdscr.get_max_x() - 100) / 2,
-        )
-        .unwrap();
-    result_win.refresh();
+        let result_win = stdscr
+            .subwin(
+                32,
+                40,
+                (stdscr.get_max_y() - 32) / 2,
+                (stdscr.get_max_x() - 40) / 2,
+            )
+            .unwrap();
+        result_win.refresh();
 
-    display_result(&result_win, &data, duration);
+        display_result(&result_win, &data, duration);
 
-    stdscr.refresh();
-    stdscr.getch();
+        stdscr.refresh();
+        let input = stdscr.getch();
+        if input == Some(Input::Character('q')) {
+            break;
+        }
+    }
+
     endwin();
 }
