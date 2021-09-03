@@ -119,16 +119,40 @@ fn main() {
     canvas.input_win.keypad(true);
 
     loop {
+        let english = [
+            "the", "be", "of", "and", "a", "to", "in", "he", "have", "it", "that", "for", "they",
+            "I", "with", "as", "not", "on", "she", "at", "by", "this", "we", "you", "do", "but",
+            "from", "or", "which", "one", "would", "all", "will", "there", "say", "who", "make",
+            "when", "can", "more", "if", "no", "man", "out", "other", "so", "what", "time", "up",
+            "go", "about", "than", "into", "could", "state", "only", "new", "year", "some", "take",
+            "come", "these", "know", "see", "use", "get", "like", "then", "first", "any", "work",
+            "now", "may", "such", "give", "over", "think", "most", "even", "find", "day", "also",
+            "after", "way", "many", "must", "look", "before", "great", "back", "through", "long",
+            "where", "much", "should", "well", "people", "down", "own", "just", "because", "good",
+            "each", "those", "feel", "seem", "how", "high", "too", "place", "little", "world",
+            "very", "still", "nation", "hand", "old", "life", "tell", "write", "become", "here",
+            "show", "house", "both", "between", "need", "mean", "call", "develop", "under", "last",
+            "right", "move", "thing", "general", "school", "never", "same", "another", "begin",
+            "while", "number", "part", "turn", "real", "leave", "might", "want", "point", "form",
+            "off", "child", "few", "small", "since", "against", "ask", "late", "home", "interest",
+            "large", "person", "end", "open", "public", "follow", "during", "present", "without",
+            "again", "hold", "govern", "around", "possible", "head", "consider", "word", "program",
+            "problem", "however", "lead", "system", "set", "order", "eye", "plan", "run", "keep",
+            "face", "fact", "group", "play", "stand", "increase", "early", "course", "change",
+            "help", "line",
+        ];
         let mut rng = rand::thread_rng();
         let mut output = String::new();
         while output.chars().count() < 180 {
-            if let Ok(mut lines) = read_lines("./src/lib/english.txt") {
-                let x: usize = rng.gen_range(0..1000);
-                if let Some(line) = lines.nth(x) {
-                    output.push_str(line.unwrap().trim());
-                    output.push(' ');
-                }
-            }
+            //if let Ok(mut lines) = read_lines("./src/lib/english.txt") {
+            let x: usize = rng.gen_range(0..english.len() - 1);
+            //if let Some(line) = lines.nth(x) {
+            //    output.push_str(line.unwrap().trim());
+            //    output.push(' ');
+            //}
+            output.push_str(english[x]);
+            output.push(' ');
+            //}
         }
 
         canvas.text = output;
