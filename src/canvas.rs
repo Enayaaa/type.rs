@@ -151,10 +151,11 @@ impl Canvas {
         self.text_win.refresh();
         self.input_win.mv(0, 0);
 
+        let mut test_started = false;
         let mut data: Vec<(f32, f32)> = Vec::new();
         let mut data_timer = Instant::now();
 
-        let timer = Instant::now();
+        let mut timer = Instant::now();
         loop {
             match self.input_win.getch() {
                 Some(Input::Character('\x0D')) => (),
@@ -167,6 +168,11 @@ impl Canvas {
                         self.word_idx += 1;
                     } else {
                         self.input.push(' ');
+                        if !test_started {
+                            test_started = true;
+                            timer = Instant::now();
+                            data_timer = Instant::now();
+                        }
                     }
                 }
                 // Ctrl + backspace pressed
@@ -192,6 +198,11 @@ impl Canvas {
                 // normal characters
                 Some(Input::Character(c)) => {
                     self.input.push(c);
+                    if !test_started {
+                        test_started = true;
+                        timer = Instant::now();
+                        data_timer = Instant::now();
+                    }
                 }
                 // delete key quits the program
                 Some(Input::KeyDC) => break,
@@ -199,23 +210,25 @@ impl Canvas {
                 None => (),
             }
 
-            self.display_state(format!("{}", timer.elapsed().as_secs()));
-            self.display_input();
-            self.display_text();
-            self.text_win.refresh();
+            if test_started {
+                self.display_state(format!("{}", timer.elapsed().as_secs()));
+                self.display_input();
+                self.display_text();
+                self.text_win.refresh();
 
-            if self.word_idx == self.get_words().count() - 1
-                && self.get_words().nth(self.word_idx).unwrap() == self.input
-            {
-                self.input_win.erase();
-                self.input_win.refresh();
-                break;
-            }
+                if self.word_idx == self.get_words().count() - 1
+                    && self.get_words().nth(self.word_idx).unwrap() == self.input
+                {
+                    self.input_win.erase();
+                    self.input_win.refresh();
+                    break;
+                }
 
-            if data_timer.elapsed() >= Duration::from_secs(1) {
-                let wpm = gross_wpm(self.get_char_index(), timer.elapsed());
-                data.push((timer.elapsed().as_secs_f32(), wpm as f32));
-                data_timer = Instant::now();
+                if data_timer.elapsed() >= Duration::from_secs(1) {
+                    let wpm = gross_wpm(self.get_char_index(), timer.elapsed());
+                    data.push((timer.elapsed().as_secs_f32(), wpm as f32));
+                    data_timer = Instant::now();
+                }
             }
 
             sleep(Duration::new(0, 17000));

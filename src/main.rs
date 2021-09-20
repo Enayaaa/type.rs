@@ -118,7 +118,7 @@ fn main() {
     let mut canvas = Canvas::new(text_win, input_win, state_win);
     canvas.input_win.keypad(true);
 
-    loop {
+    'main_loop: loop {
         let english = [
             "the", "be", "of", "and", "a", "to", "in", "he", "have", "it", "that", "for", "they",
             "I", "with", "as", "not", "on", "she", "at", "by", "this", "we", "you", "do", "but",
@@ -192,10 +192,19 @@ fn main() {
         display_result(&result_win, &data, duration);
 
         stdscr.refresh();
-        let input = stdscr.getch();
-        if input == Some(Input::Character('q')) {
-            break;
+
+        noecho();
+        'input_loop: loop {
+            match stdscr.getch() {
+                Some(Input::Character('q')) => {
+                    break 'main_loop; // quit
+                }
+                Some(Input::Character('\n')) => break 'input_loop, // Restart test
+                Some(_) => (),
+                None => (),
+            }
         }
+        echo();
     }
 
     endwin();
